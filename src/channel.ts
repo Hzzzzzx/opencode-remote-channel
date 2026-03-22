@@ -7,6 +7,10 @@ import { normalizeAccountId } from "openclaw/plugin-sdk";
 
 import { logger } from "./util/logger.js";
 import { sendRemoteOutbound } from "./messaging/outbound.js";
+import { createHttpServer } from "./server/http-server.js";
+import { createWsServer } from "./server/ws-server.js";
+import { createMessageHandler } from "./server/handlers.js";
+import { resolveRemoteChannelRuntime } from "./runtime.js";
 
 export interface ResolvedRemoteAccount {
   accountId: string;
@@ -109,14 +113,63 @@ export const remotePlugin: ChannelPlugin<ResolvedRemoteAccount> = {
   },
   gateway: {
     startAccount: async (ctx) => {
-      logger.debug(`startAccount entry`);
       if (!ctx) {
         logger.warn(`gateway.startAccount: called with undefined ctx`);
         return;
       }
       const account = ctx.account;
       const aLog = logger.withAccount(account.accountId);
-      aLog.info(`starting remote channel`);
+      const { port, token, host, path } = account.config;
+
+      aLog.info(`starting remote channel on ${host}:${port}${path}`);
+
+      // 获取运行时
+      const channelRuntime = ctx.channelRuntime
+        || (await resolveRemoteChannelRuntime({ waitTimeoutMs: 5000 }));
+
+      // 创建消息处理器
+      const rawHandler = createMessageHandler({
+        channelRuntime,
+        config: ctx.cfg,
+        accountId: account.accountId,
+      });
+
+      const httpHandler = async (msg: import("./server/handlers.js").RemoteMessage) => {
+        let result: import("./server/handlers.js").ReplyPayload = { text: "" };
+        await rawHandler(msg, (reply) => { result = reply; });
+        return result;
+      };
+
+      const wsHandler = async (msg: import("./server/handlers.js").RemoteMessage, send: (reply: import("./server/handlers.js").ReplyPayload) => void) => {
+        await rawHandler(msg, send);
+      };
+
+      // 启动 HTTP 服务器
+      try {
+        createHttpServer({
+          port,
+          host,
+          path,
+          token,
+          onMessage: httpHandler,
+          onError: (err) => aLog.error(`HTTP server error: ${err.message}`),
+        });
+      } catch (err) {
+        aLog.error(`Failed to start HTTP server: ${(err as Error).message}`);
+      }
+
+      // 启动 WebSocket 服务器
+      try {
+        createWsServer({
+          port: port + 1,
+          host,
+          token,
+          onMessage: wsHandler,
+          onError: (err) => aLog.error(`WebSocket server error: ${err.message}`),
+        });
+      } catch (err) {
+        aLog.warn(`WebSocket server optional, failed to start: ${(err as Error).message}`);
+      }
 
       ctx.setStatus?.({
         accountId: account.accountId,
@@ -124,9 +177,6 @@ export const remotePlugin: ChannelPlugin<ResolvedRemoteAccount> = {
         lastStartAt: Date.now(),
         lastEventAt: Date.now(),
       });
-
-      // TODO: Start HTTP/WebSocket server
-      logger.info(`Remote channel would start server on port ${account.config.port}`);
     },
     loginWithQrStart: async () => {
       return { qrDataUrl: undefined, message: "Not implemented" };
@@ -142,16 +192,26 @@ function resolveRemoteAccount(
   accountId?: string | null,
 ): ResolvedRemoteAccount {
   const id = accountId ?? "default";
+
+  // Read config from OpenClaw channels config
+  const channelConfig = (
+    cfg.channels as Record<string, unknown> | undefined
+  )?.["opencode-remote"] as Record<string, unknown> | undefined;
+
+  const resolvedConfig: RemoteConfig = {
+    port: (channelConfig?.port as number) ?? 18888,
+    token: (channelConfig?.token as string) ?? "change-me",
+    path: (channelConfig?.path as string) ?? "/api/chat",
+    host: (channelConfig?.host as string) ?? "0.0.0.0",
+  };
+
+  const configured = Boolean(channelConfig && channelConfig.enabled !== false);
+
   return {
     accountId: id,
     name: `Remote Channel`,
     enabled: true,
-    configured: true, // TODO: check config
-    config: {
-      port: 18888,
-      token: "change-me",
-      path: "/api/chat",
-      host: "0.0.0.0",
-    },
+    configured,
+    config: resolvedConfig,
   };
 }

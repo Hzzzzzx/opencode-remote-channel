@@ -9,17 +9,24 @@
     "dev": "tsc --watch",
     "test": "echo \"No tests yet\""
   },
-  "keywords": ["opencode", "plugin", "channel", "remote"],
+  "keywords": [
+    "opencode",
+    "plugin",
+    "channel",
+    "remote"
+  ],
   "license": "MIT",
-  "peerDependencies": {
-    "opencode": ">=2026.3.0"
-  },
+  "peerDependencies": {},
   "devDependencies": {
-    "typescript": "^5.3.0",
-    "@types/node": "^20.10.0"
+    "@types/node": "^20.10.0",
+    "@types/ws": "^8.18.1",
+    "typescript": "^5.3.0"
   },
   "dependencies": {
     "ws": "^8.14.0",
     "zod": "^3.22.0"
+  },
+  "opencodePlugin": {
+    "hostVersion": ">=2026.3.0"
   }
 }
