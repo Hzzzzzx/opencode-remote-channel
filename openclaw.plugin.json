@@ -1,0 +1,9 @@
+{
+  "id": "openclaw-remote",
+  "channels": ["openclaw-remote"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
