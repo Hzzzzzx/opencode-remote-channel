@@ -6,8 +6,6 @@ import type { RemoteMessage, ReplyPayload } from "./handlers.js";
 
 function safeTokenCompare(a: string, b: string): boolean {
   if (a.length !== b.length) {
-    const dummy = Buffer.alloc(b.length);
-    timingSafeEqual(Buffer.from(a), dummy);
     return false;
   }
   return timingSafeEqual(Buffer.from(a), Buffer.from(b));
