@@ -1,41 +1,34 @@
-/**
- * Channel Plugin 主定义
- */
-
 import type { ChannelPlugin, OpenClawConfig } from "openclaw/plugin-sdk";
 import { normalizeAccountId } from "openclaw/plugin-sdk";
 
 import { logger } from "./util/logger.js";
-import { sendRemoteOutbound } from "./messaging/outbound.js";
-import { createHttpServer } from "./server/http-server.js";
-import { createWsServer } from "./server/ws-server.js";
-import { createMessageHandler } from "./server/handlers.js";
 import { resolveRemoteChannelRuntime } from "./runtime.js";
+import { createMessageHandler } from "./server/handlers.js";
+import { startPolling, sendReply } from "./ilink/polling.js";
+import { loadCredentials, doQRLogin } from "./ilink/login.js";
+import type { AccountData, ParsedMessage } from "./types/ilink-types.js";
 
-export interface ResolvedRemoteAccount {
+export interface ResolvedWechatAccount {
   accountId: string;
   name: string;
   enabled: boolean;
   configured: boolean;
-  config: RemoteConfig;
+  config: WechatConfig;
 }
 
-interface RemoteConfig {
-  port: number;
-  token: string;
-  path: string;
-  host: string;
+interface WechatConfig {
+  baseUrl: string;
 }
 
-export const remotePlugin: ChannelPlugin<ResolvedRemoteAccount> = {
-  id: "opencode-remote",
+export const wechatPlugin: ChannelPlugin<ResolvedWechatAccount> = {
+  id: "opencode-wechat",
   meta: {
-    id: "opencode-remote",
-    label: "opencode-remote",
-    selectionLabel: "opencode-remote (HTTP)",
-    docsPath: "/channels/opencode-remote",
-    docsLabel: "opencode-remote",
-    blurb: "Remote channel via HTTP/WebSocket",
+    id: "opencode-wechat",
+    label: "opencode-wechat",
+    selectionLabel: "opencode-wechat (ilink)",
+    docsPath: "/channels/opencode-wechat",
+    docsLabel: "opencode-wechat",
+    blurb: "WeChat channel via ilink API",
     order: 80,
   },
   configSchema: {
@@ -51,18 +44,18 @@ export const remotePlugin: ChannelPlugin<ResolvedRemoteAccount> = {
   },
   messaging: {
     targetResolver: {
-      looksLikeId: (raw) => raw.includes("@remote"),
+      looksLikeId: (raw) => raw.includes("@wechat"),
     },
   },
   agentPrompt: {
     messageToolHints: () => [
-      "This is a remote control channel. Messages are received via HTTP API.",
+      "This is a WeChat channel. Messages are received via ilink API.",
     ],
   },
-  reload: { configPrefixes: ["channels.opencode-remote"] },
+  reload: { configPrefixes: ["channels.opencode-wechat"] },
   config: {
     listAccountIds: (cfg) => ["default"],
-    resolveAccount: (cfg, accountId) => resolveRemoteAccount(cfg, accountId),
+    resolveAccount: (cfg, accountId) => resolveWechatAccount(cfg, accountId),
     isConfigured: (account) => account.configured,
     describeAccount: (account) => ({
       accountId: account.accountId,
@@ -75,13 +68,12 @@ export const remotePlugin: ChannelPlugin<ResolvedRemoteAccount> = {
     deliveryMode: "direct",
     textChunkLimit: 4000,
     sendText: async (ctx) => {
-      const result = await sendRemoteOutbound({
-        cfg: ctx.cfg,
-        to: ctx.to,
-        text: ctx.text,
-        accountId: ctx.accountId,
-      });
-      return result;
+      logger.info(`[outbound] to=${ctx.to} text=${ctx.text.slice(0, 50)}...`);
+      return {
+        channel: "opencode-wechat",
+        messageId: `wechat-${Date.now()}`,
+        chatId: ctx.to,
+      };
     },
   },
   status: {
@@ -108,7 +100,7 @@ export const remotePlugin: ChannelPlugin<ResolvedRemoteAccount> = {
   },
   auth: {
     login: async ({ runtime }) => {
-      logger.info("Remote channel does not require login");
+      logger.info("Wechat channel login via ilink QR code");
     },
   },
   gateway: {
@@ -119,57 +111,53 @@ export const remotePlugin: ChannelPlugin<ResolvedRemoteAccount> = {
       }
       const account = ctx.account;
       const aLog = logger.withAccount(account.accountId);
-      const { port, token, host, path } = account.config;
+      aLog.info("starting wechat channel via ilink");
 
-      aLog.info(`starting remote channel on ${host}:${port}${path}`);
+      let creds = loadCredentials();
+      if (!creds) {
+        aLog.info("未找到已保存的凭据，启动微信扫码登录...");
+        creds = await doQRLogin(account.config.baseUrl);
+        if (!creds) {
+          aLog.error("登录失败");
+          return;
+        }
+      } else {
+        aLog.info(`使用已保存账号: ${creds.accountId}`);
+      }
 
-      // 获取运行时
       const channelRuntime = ctx.channelRuntime
         || (await resolveRemoteChannelRuntime({ waitTimeoutMs: 5000 }));
 
-      // 创建消息处理器
       const rawHandler = createMessageHandler({
         channelRuntime,
         config: ctx.cfg,
         accountId: account.accountId,
       });
 
-      const httpHandler = async (msg: import("./server/handlers.js").RemoteMessage) => {
-        let result: import("./server/handlers.js").ReplyPayload = { text: "" };
-        await rawHandler(msg, (reply) => { result = reply; });
-        return result;
-      };
+      await startPolling({
+        account: creds,
+        onMessage: async (parsed: ParsedMessage) => {
+          const httpHandler = async (msg: import("./server/handlers.js").RemoteMessage) => {
+            let result: import("./server/handlers.js").ReplyPayload = { text: "" };
+            await rawHandler(msg, (reply) => { result = reply; });
+            return result;
+          };
 
-      const wsHandler = async (msg: import("./server/handlers.js").RemoteMessage, send: (reply: import("./server/handlers.js").ReplyPayload) => void) => {
-        await rawHandler(msg, send);
-      };
+          const fakeMsg = {
+            message: parsed.text,
+            peerId: parsed.senderId,
+            sessionId: `wechat:${account.accountId}:${parsed.senderId}`,
+          };
 
-      // 启动 HTTP 服务器
-      try {
-        createHttpServer({
-          port,
-          host,
-          path,
-          token,
-          onMessage: httpHandler,
-          onError: (err) => aLog.error(`HTTP server error: ${err.message}`),
-        });
-      } catch (err) {
-        aLog.error(`Failed to start HTTP server: ${(err as Error).message}`);
-      }
-
-      // 启动 WebSocket 服务器
-      try {
-        createWsServer({
-          port: port + 1,
-          host,
-          token,
-          onMessage: wsHandler,
-          onError: (err) => aLog.error(`WebSocket server error: ${err.message}`),
-        });
-      } catch (err) {
-        aLog.warn(`WebSocket server optional, failed to start: ${(err as Error).message}`);
-      }
+          const response = await httpHandler(fakeMsg);
+          if (response.text) {
+            await sendReply(creds, parsed, response.text);
+          }
+        },
+        onError: (err) => {
+          aLog.error(`处理消息失败: ${String(err)}`);
+        },
+      });
 
       ctx.setStatus?.({
         accountId: account.accountId,
@@ -187,29 +175,25 @@ export const remotePlugin: ChannelPlugin<ResolvedRemoteAccount> = {
   },
 };
 
-function resolveRemoteAccount(
+function resolveWechatAccount(
   cfg: OpenClawConfig,
   accountId?: string | null,
-): ResolvedRemoteAccount {
+): ResolvedWechatAccount {
   const id = accountId ?? "default";
 
-  // Read config from OpenClaw channels config
   const channelConfig = (
     cfg.channels as Record<string, unknown> | undefined
-  )?.["opencode-remote"] as Record<string, unknown> | undefined;
+  )?.["opencode-wechat"] as Record<string, unknown> | undefined;
 
-  const resolvedConfig: RemoteConfig = {
-    port: (channelConfig?.port as number) ?? 18888,
-    token: (channelConfig?.token as string) ?? "change-me",
-    path: (channelConfig?.path as string) ?? "/api/chat",
-    host: (channelConfig?.host as string) ?? "0.0.0.0",
+  const resolvedConfig: WechatConfig = {
+    baseUrl: (channelConfig?.baseUrl as string) ?? "https://ilinkai.weixin.qq.com",
   };
 
   const configured = Boolean(channelConfig && channelConfig.enabled !== false);
 
   return {
     accountId: id,
-    name: `Remote Channel`,
+    name: `WeChat Channel`,
     enabled: true,
     configured,
     config: resolvedConfig,
