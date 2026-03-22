@@ -1,8 +1,8 @@
-# OpenClaw Remote Channel Plugin
+# OpenCode Remote Channel Plugin
 
 ## 项目概述
 
-**目标**: 制作一个 Channel Plugin，实现远程控制 OpenClaw 的功能。通过 HTTP/WebSocket 等协议，远程客户端可以发送消息给 OpenClaw，OpenClaw 处理后返回结果。
+**目标**: 制作一个 Channel Plugin，实现远程控制 OpenCode 的功能。通过 HTTP/WebSocket 等协议，远程客户端可以发送消息给 OpenCode，OpenCode 处理后返回结果。
 
 **参考**: 基于 `@tencent-weixin/openclaw-weixin` 插件的架构
 
@@ -14,11 +14,11 @@
 - [ ] 简单 Token 认证
 
 ### 2. 消息转换
-- [ ] 将外部消息格式转换为 OpenClaw 内部 `MsgContext`
+- [ ] 将外部消息格式转换为 OpenCode 内部 `MsgContext`
 - [ ] 支持文本消息
 - [ ] 支持命令格式
 
-### 3. 与 OpenClaw 集成
+### 3. 与 OpenCode 集成
 - [ ] 实现 `ChannelPlugin` 接口
 - [ ] 使用 `channelRuntime.reply.finalizeInboundContext()` 发送消息
 - [ ] 处理 AI 回复并返回给客户端
@@ -45,13 +45,13 @@ AI Agent 处理
 
 ### 消息流程
 
-1. **入站 (Remote → OpenClaw)**
+1. **入站 (Remote → OpenCode)**
    - 客户端发送 HTTP POST 请求
    - 插件解析消息，转换为 MsgContext
    - 调用 `finalizeInboundContext()` 发送给 AI
    - AI 处理并生成回复
 
-2. **出站 (OpenClaw → Remote)**
+2. **出站 (OpenCode → Remote)**
    - AI 回复通过 `deliver()` 回调
    - 插件将回复转换为 HTTP 响应
    - 返回给客户端
@@ -59,7 +59,7 @@ AI Agent 处理
 ## 项目结构
 
 ```
-openclaw-remote-channel/
+opencode-remote-channel/
 ├── index.ts                    # 插件入口
 ├── openclaw.plugin.json        # 插件清单
 ├── package.json
@@ -102,14 +102,14 @@ openclaw-remote-channel/
 
 ### Phase 4: 测试与部署
 11. [ ] 本地测试
-12. [ ] 部署到 OpenClaw
+12. [ ] 部署到 OpenCode
 
 ## 配置示例
 
 ```json
 {
   "channels": {
-    "openclaw-remote": {
+    "opencode-remote": {
       "enabled": true,
       "port": 18888,
       "token": "your-secret-token",
@@ -149,10 +149,10 @@ Content-Type: application/json
 1. **协议选择**: HTTP 轮询 vs WebSocket vs Server-Sent Events?
 2. **会话管理**: 如何处理多用户/多会话?
 3. **消息格式**: 是否需要支持结构化命令?
-4. **部署方式**: 作为 OpenClaw 插件还是独立服务?
+4. **部署方式**: 作为 OpenCode 插件还是独立服务?
 5. **与 K 的结合**: 跟 K 相关的具体需求是什么?
 
 ## 相关文档
 
 - [微信插件源码](../openclaw/extensions/openclaw-weixin/src/)
-- [OpenClaw Plugin SDK](https://github.com/modelcontextprotocol)
+- [OpenCode Plugin SDK](https://github.com/modelcontextprotocol)

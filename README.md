@@ -1,6 +1,6 @@
-# OpenClaw Remote Channel Plugin
+# OpenCode Remote Channel Plugin
 
-远程控制 OpenClaw 的 Channel Plugin。
+远程控制 OpenCode 的 Channel Plugin。
 
 ## 项目状态
 

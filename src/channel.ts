@@ -24,13 +24,13 @@ interface RemoteConfig {
 }
 
 export const remotePlugin: ChannelPlugin<ResolvedRemoteAccount> = {
-  id: "openclaw-remote",
+  id: "opencode-remote",
   meta: {
-    id: "openclaw-remote",
-    label: "openclaw-remote",
-    selectionLabel: "openclaw-remote (HTTP)",
-    docsPath: "/channels/openclaw-remote",
-    docsLabel: "openclaw-remote",
+    id: "opencode-remote",
+    label: "opencode-remote",
+    selectionLabel: "opencode-remote (HTTP)",
+    docsPath: "/channels/opencode-remote",
+    docsLabel: "opencode-remote",
     blurb: "Remote channel via HTTP/WebSocket",
     order: 80,
   },
@@ -55,7 +55,7 @@ export const remotePlugin: ChannelPlugin<ResolvedRemoteAccount> = {
       "This is a remote control channel. Messages are received via HTTP API.",
     ],
   },
-  reload: { configPrefixes: ["channels.openclaw-remote"] },
+  reload: { configPrefixes: ["channels.opencode-remote"] },
   config: {
     listAccountIds: (cfg) => ["default"],
     resolveAccount: (cfg, accountId) => resolveRemoteAccount(cfg, accountId),

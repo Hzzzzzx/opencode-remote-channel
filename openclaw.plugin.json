@@ -1,6 +1,6 @@
 {
-  "id": "openclaw-remote",
-  "channels": ["openclaw-remote"],
+  "id": "opencode-remote",
+  "channels": ["opencode-remote"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

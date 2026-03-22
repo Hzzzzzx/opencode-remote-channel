@@ -1,10 +1,3 @@
-/**
- * OpenClaw Remote Channel Plugin
- * 
- * 远程控制 OpenClaw 的 Channel Plugin
- * 通过 HTTP/WebSocket 接收远程消息，与 OpenClaw AI 交互
- */
-
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { buildChannelConfigSchema } from "openclaw/plugin-sdk";
 
@@ -13,9 +6,9 @@ import { RemoteConfigSchema } from "./src/config/config-schema.js";
 import { setRemoteRuntime } from "./src/runtime.js";
 
 const plugin = {
-  id: "openclaw-remote",
+  id: "opencode-remote",
   name: "Remote",
-  description: "Remote channel (HTTP/WebSocket) for controlling OpenClaw",
+  description: "Remote channel (HTTP/WebSocket) for controlling OpenCode",
   configSchema: buildChannelConfigSchema(RemoteConfigSchema),
   register(api: OpenClawPluginApi) {
     if (!api?.runtime) {

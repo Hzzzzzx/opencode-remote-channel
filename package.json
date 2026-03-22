@@ -1,7 +1,7 @@
 {
-  "name": "openclaw-remote-channel",
+  "name": "opencode-remote-channel",
   "version": "0.1.0",
-  "description": "Remote channel plugin for OpenClaw - control OpenClaw via HTTP/WebSocket",
+  "description": "Remote channel plugin for OpenCode - control OpenCode via HTTP/WebSocket",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -9,10 +9,10 @@
     "dev": "tsc --watch",
     "test": "echo \"No tests yet\""
   },
-  "keywords": ["openclaw", "plugin", "channel", "remote"],
+  "keywords": ["opencode", "plugin", "channel", "remote"],
   "license": "MIT",
   "peerDependencies": {
-    "openclaw": ">=2026.3.0"
+    "opencode": ">=2026.3.0"
   },
   "devDependencies": {
     "typescript": "^5.3.0",
